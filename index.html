@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球节假日提醒与倒计时</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .holiday-container {
+            display: inline-block;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            max-width: 800px;
+            text-align: left;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 20px;
+            color: #4285F4;
+            margin-bottom: 10px;
+        }
+        #current-date {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            border-bottom: 1px dashed #ddd;
+            padding-bottom: 5px;
+        }
+        .holiday-name {
+            font-weight: bold;
+            color: #333;
+        }
+        .countdown {
+            color: red;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="holiday-container">
+        <h1>全球节假日提醒与倒计时</h1>
+        <p id="current-date">当前日期：加载中...</p>
+        <ul id="holiday-list">加载节日信息中...</ul>
+    </div>
+
+    <script>
+        const countries = [
+            { code: "US", name: "美国" },
+            { code: "GB", name: "英国" },
+            { code: "DE", name: "德国" },
+            { code: "FR", name: "法国" },
+            { code: "AU", name: "澳大利亚" },
+            { code: "JP", name: "日本" },
+            { code: "CN", name: "中国" }
+        ];
+
+        const BAIDU_API_URL = "https://fanyi-api.baidu.com/api/trans/vip/translate";
+        const BAIDU_APPID = "20241218002231344";
+        const BAIDU_KEY = "glSrusfyzh_lYR5R3XkA";
+
+        const today = new Date();
+        document.getElementById("current-date").innerText = `当前日期：${today.toLocaleDateString('zh-CN')}`;
+
+        const holidayList = document.getElementById("holiday-list");
+
+        async function fetchHolidays() {
+            holidayList.innerHTML = "";
+            const displayedHolidays = new Set();
+
+            for (const country of countries) {
+                const apiUrl = `https://date.nager.at/api/v3/PublicHolidays/${today.getFullYear()}/${country.code}`;
+                try {
+                    const response = await fetch(apiUrl);
+                    const holidays = await response.json();
+
+                    for (const holiday of holidays) {
+                        const holidayDate = new Date(holiday.date);
+                        const daysLeft = Math.ceil((holidayDate - today) / (1000 * 60 * 60 * 24));
+
+                        // 筛选放假超过 2 天的节日
+                        if (daysLeft > 0 && !displayedHolidays.has(holiday.name)) {
+                            displayedHolidays.add(holiday.name);
+                            const translatedName = await translateToChinese(holiday.localName);
+
+                            const listItem = document.createElement("li");
+                            listItem.innerHTML = `
+                                <span class="holiday-name">${translatedName} (${country.name})</span>
+                                <span>${holiday.date}</span>
+                                <span class="countdown">还有 ${daysLeft} 天</span>
+                            `;
+                            holidayList.appendChild(listItem);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`获取 ${country.name} 节日数据失败:`, error);
+                }
+            }
+
+            if (!holidayList.hasChildNodes()) {
+                holidayList.innerHTML = "<li>未找到符合条件的节日信息</li>";
+            }
+        }
+
+        async function translateToChinese(text) {
+            const salt = new Date().getTime();
+            const sign = md5(BAIDU_APPID + text + salt + BAIDU_KEY);
+            const url = `${BAIDU_API_URL}?q=${encodeURIComponent(text)}&from=en&to=zh&appid=${BAIDU_APPID}&salt=${salt}&sign=${sign}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                return data.trans_result[0].dst || text;
+            } catch (error) {
+                console.error("翻译失败:", error);
+                return text; // 翻译失败时返回原文
+            }
+        }
+
+        // MD5 签名生成
+        function md5(string) {
+            return CryptoJS.MD5(string).toString();
+        }
+
+        fetchHolidays();
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</body>
+</html>
